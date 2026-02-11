@@ -59,6 +59,10 @@ FloDoro/
 │   │   └── BreakRecView.swift        # Break recommendation
 │   ├── Theme/
 │   │   └── FloDoroTheme.swift        # Colors, fonts, spacing (per-platform)
+│   ├── Sync/
+│   │   ├── LocalSyncManager.swift    # Network Framework (Bonjour) for iPhone↔Mac
+│   │   ├── WatchSyncManager.swift    # Watch Connectivity for iPhone↔Watch
+│   │   └── SyncCoordinator.swift     # Orchestrates all 3 sync layers + relay
 │   └── Utilities/
 │       ├── Notifications.swift       # UNUserNotification abstraction
 │       └── HapticsManager.swift      # Haptics (iOS/watchOS)
@@ -470,7 +474,233 @@ struct FloDoroComplication: Widget {
 | Timer state (running/paused) | **No** | Real-time state is device-local; each device runs independently |
 | Notification permissions | **No** | Per-device OS setting |
 
-### 7.4 Independent Operation
+### 7.4 Local Proximity Sync (Same WiFi / Nearby)
+
+iCloud CloudKit sync has **~15 second latency at best** and push notifications [may not trigger while the app is in the foreground](https://developer.apple.com/forums/thread/761434). For near-instant sync when devices are nearby, FloDoro layers two additional real-time channels on top of CloudKit:
+
+#### Architecture: Hybrid Sync
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                    SYNC LAYERS                           │
+│                                                          │
+│  Layer 1: iCloud/CloudKit (background, eventual)         │
+│  ┌────────┐      ┌─────────┐      ┌─────────┐          │
+│  │ macOS  │ ───► │ iCloud  │ ◄─── │  iOS    │          │
+│  │        │      │ (≈15s)  │      │         │          │
+│  └────────┘      └─────────┘      └─────────┘          │
+│                       ▲                ▲                 │
+│                       │                │                 │
+│                  ┌────┘           ┌────┘                 │
+│                  │ watchOS │      │                      │
+│                  └─────────┘      │                      │
+│                                   │                      │
+│  Layer 2: Local Real-Time (same network, <1s)            │
+│  ┌────────┐  Network Framework   ┌─────────┐           │
+│  │ macOS  │ ◄──────────────────► │  iOS    │           │
+│  │        │  NWBrowser/Listener  │  (hub)  │           │
+│  └────────┘  Bonjour, <1s       └─────────┘           │
+│                                       ▲                 │
+│  Layer 3: Watch Connectivity (<1s)    │                 │
+│                                  ┌────┘                 │
+│                             ┌────┴────┐                 │
+│                             │ watchOS │                 │
+│                             │sendMsg()│                 │
+│                             └─────────┘                 │
+│                                                          │
+│  iPhone acts as the BRIDGE between Mac and Watch         │
+│  (no direct Mac ↔ Watch path exists)                    │
+└──────────────────────────────────────────────────────────┘
+```
+
+#### Layer 1: iCloud/CloudKit (Baseline — Always Active)
+
+- **What**: SwiftData auto-sync via CloudKit private database
+- **Latency**: ~15 seconds best case; can be minutes in poor conditions
+- **When**: Always active, handles cross-network and offline catch-up
+- **Limitation**: [Foreground sync may stall](https://www.hackingwithswift.com/forums/swiftui/cloudkit-data-syncing-inconsistently/17703) — push notifications aren't always delivered while app is open
+- **Mitigation**: Trigger `NSPersistentCloudKitContainer` manual import on `scenePhase` change; or use `CKSyncEngine` for more control
+
+#### Layer 2: Network Framework — iPhone ↔ Mac (Same WiFi, <1s)
+
+Apple [recommends Network framework over Multipeer Connectivity](https://developer.apple.com/forums/thread/776069) for new development. Multipeer Connectivity doesn't support watchOS and is nearing deprecation.
+
+```swift
+import Network
+
+/// Mac side: advertise as listener
+class LocalSyncListener {
+    private var listener: NWListener?
+
+    func start() throws {
+        let params = NWParameters.tcp
+        params.includePeerToPeer = true // Enables Bonjour peer-to-peer
+
+        listener = try NWListener(using: params)
+        listener?.service = NWListener.Service(
+            name: "FloDoro-\(DeviceIdentifier.shortID)",
+            type: "_flodoro._tcp"
+        )
+        listener?.newConnectionHandler = { connection in
+            self.handleConnection(connection)
+        }
+        listener?.start(queue: .main)
+    }
+
+    private func handleConnection(_ connection: NWConnection) {
+        connection.start(queue: .main)
+        // Receive timer state updates, session completions, etc.
+    }
+}
+
+/// iPhone side: browse for nearby FloDoro devices
+class LocalSyncBrowser {
+    private var browser: NWBrowser?
+
+    func start() {
+        let params = NWParameters.tcp
+        params.includePeerToPeer = true
+
+        browser = NWBrowser(
+            for: .bonjour(type: "_flodoro._tcp", domain: nil),
+            using: params
+        )
+        browser?.browseResultsChangedHandler = { results, changes in
+            // Discover Mac running FloDoro → connect
+            for result in results {
+                self.connectTo(result)
+            }
+        }
+        browser?.start(queue: .main)
+    }
+}
+```
+
+**What syncs via this channel**:
+- Timer state changes (start, pause, stop, phase transition) — so all devices reflect current state instantly
+- Session completion events — appear in session log immediately
+- Mode changes — if you switch mode on iPhone, Mac reflects it
+
+**What does NOT sync here** (left to CloudKit):
+- Historical session data (bulk)
+- App usage records
+- Preference changes
+
+**Auto-discovery**: Bonjour service discovery means devices find each other automatically on the same WiFi — no pairing UI needed. The `_flodoro._tcp` service type is unique to the app.
+
+#### Layer 3: Watch Connectivity — iPhone ↔ Apple Watch (<1s)
+
+[Watch Connectivity](https://developer.apple.com/documentation/watchconnectivity) is the **only** framework for real-time iPhone ↔ Watch communication. Per [WWDC 2021](https://developer.apple.com/videos/play/wwdc2021/10003/), it provides five transfer methods:
+
+| Method | Use in FloDoro | Latency | Delivery |
+|--------|---------------|---------|----------|
+| **`sendMessage(_:)`** | Timer state changes (start/pause/stop) | Instant (<1s) | Only when both apps are reachable |
+| **`updateApplicationContext(_:)`** | Current mode, preferences, latest session | Next wake | Guaranteed, last-value-wins |
+| **`transferUserInfo(_:)`** | Completed session records | Background | Guaranteed, queued FIFO |
+| **`transferCurrentComplicationUserInfo(_:)`** | Timer countdown for watch face complication | Immediate (budget-limited) | Priority delivery for complications |
+| **`transferFile(_:)`** | Not used | Background | Guaranteed |
+
+```swift
+import WatchConnectivity
+
+class WatchSyncManager: NSObject, WCSessionDelegate, ObservableObject {
+    static let shared = WatchSyncManager()
+    private let session = WCSession.default
+
+    func activate() {
+        guard WCSession.isSupported() else { return }
+        session.delegate = self
+        session.activate()
+    }
+
+    // MARK: - Send from iPhone to Watch (or vice versa)
+
+    /// Real-time timer state (instant when both active)
+    func sendTimerState(_ state: TimerStateMessage) {
+        guard session.isReachable else {
+            // Fall back to application context
+            try? session.updateApplicationContext(state.asDictionary)
+            return
+        }
+        session.sendMessage(state.asDictionary, replyHandler: nil)
+    }
+
+    /// Completed session (guaranteed background delivery)
+    func sendCompletedSession(_ session: FocusSession) {
+        self.session.transferUserInfo(session.asDictionary)
+    }
+
+    /// Update complication with current timer
+    func updateComplication(timeRemaining: TimeInterval, mode: String) {
+        guard session.remainingComplicationUserInfoTransfers > 0 else { return }
+        session.transferCurrentComplicationUserInfo([
+            "timeRemaining": timeRemaining,
+            "mode": mode,
+            "timestamp": Date().timeIntervalSince1970
+        ])
+    }
+
+    // MARK: - Receive
+
+    func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+        // Handle incoming timer state from counterpart
+        DispatchQueue.main.async {
+            self.handleIncomingMessage(message)
+        }
+    }
+
+    func session(_ session: WCSession,
+                 didReceiveApplicationContext applicationContext: [String: Any]) {
+        // Handle mode/preference sync
+        DispatchQueue.main.async {
+            self.handleContextUpdate(applicationContext)
+        }
+    }
+}
+```
+
+#### iPhone as the Bridge (Mac ↔ Watch)
+
+There is **no direct Mac ↔ Apple Watch communication path**. The iPhone relays between them:
+
+```
+Mac ──[Network Framework]──► iPhone ──[Watch Connectivity]──► Watch
+Mac ◄──[Network Framework]── iPhone ◄──[Watch Connectivity]── Watch
+```
+
+When the iPhone receives a timer state change from the Mac (via Network Framework), it immediately forwards it to the Watch (via `sendMessage`), and vice versa. This relay adds negligible latency (<100ms) since it's all local.
+
+If the iPhone is not available, the Mac and Watch operate independently and sync later via CloudKit.
+
+#### Discovery & Connection Lifecycle
+
+```
+App Launch
+    │
+    ├─ CloudKit sync activates automatically (SwiftData)
+    │
+    ├─ Network Framework: start browsing/listening for "_flodoro._tcp"
+    │   └─ On discovery → auto-connect → exchange timer state
+    │   └─ On disconnect → fall back to CloudKit only
+    │
+    └─ Watch Connectivity: activate WCSession
+        └─ isReachable? → sendMessage for real-time
+        └─ !isReachable → updateApplicationContext for eventual
+```
+
+No manual pairing, no settings, no "connect to device" UI. Everything auto-discovers and auto-connects when devices are nearby. Falls back gracefully when they're not.
+
+#### What the User Experiences
+
+| Scenario | Behavior |
+|----------|----------|
+| All devices on same WiFi | Timer state syncs in <1 second across all three devices |
+| iPhone + Watch (no WiFi) | Bluetooth proximity handles Watch Connectivity — still <1s |
+| Devices on different networks | CloudKit handles it — ~15s delay, fully automatic |
+| One device offline | Works independently; syncs everything when back |
+| iPhone not nearby (Mac + Watch only) | Each operates independently; no relay possible; CloudKit syncs sessions later |
+
+### 7.5 Independent Operation
 
 Each app works fully standalone:
 
@@ -506,15 +736,18 @@ Each app works fully standalone:
 13. **Add iOS widgets**: Home Screen, StandBy, Lock Screen
 14. **Integrate Screen Time API** for app usage tracking (or defer to Phase 5)
 15. **Add haptic feedback** for check-ins and transitions
-16. **Test cross-device sync**: Mac ↔ iPhone
+16. **Implement Network Framework local sync** (iPhone ↔ Mac, Bonjour `_flodoro._tcp`)
+17. **Test cross-device sync**: Mac ↔ iPhone (CloudKit + local real-time)
 
 ### Phase 4: watchOS App
 
-17. **Build watchOS UI**: compact timer, simplified mode picker
-18. **Implement WidgetKit complications** for watch faces
-19. **Add haptic check-ins** using WKInterfaceDevice
-20. **Ensure independent operation** (timer works without iPhone)
-21. **Test three-way sync**: Mac ↔ iPhone ↔ Watch
+18. **Build watchOS UI**: compact timer, simplified mode picker
+19. **Implement WidgetKit complications** for watch faces
+20. **Add haptic check-ins** using WKInterfaceDevice
+21. **Implement Watch Connectivity** (`sendMessage` + `applicationContext` + `transferUserInfo`)
+22. **Build iPhone relay bridge** (Mac ↔ iPhone ↔ Watch real-time forwarding)
+23. **Ensure independent operation** (timer works without iPhone)
+24. **Test three-way sync**: Mac ↔ iPhone ↔ Watch (all three sync layers)
 
 ### Phase 5: Polish & Advanced Features
 
@@ -946,3 +1179,11 @@ struct TimerRingView: View {
 - [Apple: Designing for watchOS](https://developer.apple.com/design/human-interface-guidelines/designing-for-watchos)
 - [Apple: Creating an intuitive UI in watchOS 10](https://developer.apple.com/documentation/watchos-apps/creating-an-intuitive-and-effective-ui-in-watchos-10)
 - [Apple: Design and build apps for watchOS 10 (WWDC 2023)](https://developer.apple.com/videos/play/wwdc2023/10138/)
+- [Apple: Watch Connectivity framework](https://developer.apple.com/documentation/watchconnectivity)
+- [Apple: Transferring data with Watch Connectivity](https://developer.apple.com/documentation/WatchConnectivity/transferring-data-with-watch-connectivity)
+- [Apple: There and back again — Data transfer on Apple Watch (WWDC 2021)](https://developer.apple.com/videos/play/wwdc2021/10003/)
+- [Apple: Network framework](https://developer.apple.com/documentation/network)
+- [Apple: Build device-to-device interactions with Network Framework (WWDC 2022)](https://developer.apple.com/videos/play/wwdc2022/110339/)
+- [Apple: Supercharge device connectivity with Wi-Fi Aware (WWDC 2025)](https://developer.apple.com/videos/play/wwdc2025/228/)
+- [Apple Developer Forums: Moving from Multipeer Connectivity to Network Framework](https://developer.apple.com/forums/thread/776069)
+- [Apple Developer Forums: SwiftData and CloudKit sync latency](https://developer.apple.com/forums/thread/761434)
