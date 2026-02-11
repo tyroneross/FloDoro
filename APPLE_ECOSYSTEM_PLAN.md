@@ -1154,6 +1154,65 @@ struct TimerRingView: View {
 
 ---
 
+## 14. Implementation Status
+
+### Completed: Sync Layer Foundation (Phase 1 Core)
+
+The following files have been implemented in `FlowDoro/Sync/`:
+
+| File | Purpose | Status |
+|------|---------|--------|
+| `SyncModels.swift` | SwiftData `@Model` classes (`FocusSession`, `AppUsageRecord`, `UserPreferences`) + `TimerStateMessage` / `SessionCompleteMessage` for real-time sync | Done |
+| `DeviceIdentifier.swift` | Stable per-device UUID via Keychain (macOS) / `identifierForVendor` (iOS/watchOS). Persists across reinstalls. | Done |
+| `UserIdentityManager.swift` | Anonymous user tracking via `CKContainer.fetchUserRecordID()` — no login, no email, Apple ID is identity | Done |
+| `CloudSyncManager.swift` | SwiftData `ModelContainer` with `cloudKitDatabase: .automatic`. CRUD operations for sessions, app usage, preferences. | Done |
+| `MigrationManager.swift` | One-time SQLite → SwiftData migration for both `sessions.db` and `activity.db`. Idempotent, tagged as mac device. | Done |
+| `WatchSyncManager.swift` | Watch Connectivity layer — `sendMessage()` for real-time, `transferUserInfo()` for session records, complication updates. macOS stub included. | Done |
+| `LocalNetworkSync.swift` | Network Framework / Bonjour (`_flodoro._tcp`) — auto-discovery, TCP connections, length-framed JSON messaging, <1s latency. | Done |
+
+### Configuration Changes
+
+| File | Change |
+|------|--------|
+| `Package.swift` | Platform bumped from macOS 13 → macOS 14 (SwiftData requirement) |
+| `FlowDoro.entitlements` | Added: iCloud/CloudKit container, network client/server, Keychain access groups |
+
+### User Identity Approach: Zero Auth
+
+Users are tracked anonymously via their Apple ID — no login screen, no phone verification, no backend:
+
+1. **CloudKit private database** — tied to Apple ID at the OS level
+2. **`CKContainer.fetchUserRecordID()`** — returns a stable anonymous user ID, same across all devices
+3. **`DeviceIdentifier`** — per-device UUID stored in Keychain, stamped on every session for analytics
+4. **SwiftData auto-sync** — write on Mac, appears on iPhone and Watch automatically
+
+### Cross-Device Sync: 3 Layers
+
+```
+Layer 1: SwiftData + CloudKit (always active, ~15s)
+  └─ All sessions, preferences, app usage sync via iCloud private DB
+
+Layer 2: Network Framework / Bonjour (same WiFi, <1s)
+  └─ Real-time timer state broadcast between Mac ↔ iPhone
+
+Layer 3: Watch Connectivity (Bluetooth/WiFi, <1s)
+  └─ iPhone ↔ Watch real-time timer + session delivery
+  └─ iPhone acts as bridge: Mac ↔ iPhone ↔ Watch
+```
+
+### Remaining Work
+
+- [ ] Integrate `CloudSyncManager` into `FlowDoroApp.swift` (replace `DatabaseManager` usage)
+- [ ] Wire `TimerEngine` to broadcast state via `LocalNetworkSync` + `WatchSyncManager`
+- [ ] Build iOS target with adaptive UI
+- [ ] Build watchOS target with simplified UI
+- [ ] Add WidgetKit widgets and complications
+- [ ] Add Live Activity for iOS
+- [ ] Implement Screen Time API integration (iOS, optional)
+- [ ] End-to-end testing on real devices (Mac + iPhone + Watch)
+
+---
+
 ## Sources
 
 - [Apple: Configuring a multiplatform app](https://developer.apple.com/documentation/xcode/configuring-a-multiplatform-app-target)
