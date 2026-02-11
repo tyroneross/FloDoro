@@ -135,18 +135,21 @@ struct ContentView: View {
                         .font(.system(size: 12))
                 }
                 .buttonStyle(SecondaryButtonStyle())
+                .accessibilityLabel("App activity")
 
                 if !engine.sessionLog.isEmpty {
                     Button("Log (\(engine.sessionLog.count))") {
                         engine.showLog.toggle()
                     }
                     .buttonStyle(SecondaryButtonStyle())
+                    .accessibilityLabel("Session log, \(engine.sessionLog.count) entries")
                 }
                 if engine.phase != .idle {
                     Button("Reset") {
                         engine.handleReset()
                     }
                     .buttonStyle(SecondaryButtonStyle())
+                    .accessibilityLabel("Reset timer")
                 }
             }
         }
@@ -178,6 +181,8 @@ struct ContentView: View {
                 .buttonStyle(.plain)
                 .opacity(engine.phase != .idle && engine.selectedModeIndex != index ? 0.35 : 1)
                 .disabled(engine.phase != .idle)
+                .accessibilityLabel("\(m.label) mode")
+                .accessibilityAddTraits(engine.selectedModeIndex == index ? .isSelected : [])
             }
         }
         .padding(3)
@@ -238,6 +243,7 @@ struct ContentView: View {
             .padding(.vertical, 8)
             .background(Color.orange.opacity(0.12))
             .cornerRadius(8)
+            .accessibilityLabel("Finish and take a break")
         }
         .padding(14)
         .background(
@@ -269,6 +275,7 @@ struct ContentView: View {
                     )
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(mainButtonLabel)
 
             // Flow stop
             if engine.isFlowType && engine.phase == .work && engine.isRunning {
@@ -276,6 +283,7 @@ struct ContentView: View {
                     engine.handleFlowStop()
                 }
                 .buttonStyle(DangerButtonStyle())
+                .accessibilityLabel("Stop flow session")
             }
 
             // Skip work
@@ -284,6 +292,7 @@ struct ContentView: View {
                     engine.handleSkip()
                 }
                 .buttonStyle(MutedButtonStyle())
+                .accessibilityLabel("Skip work phase")
             }
 
             // Skip break
@@ -292,6 +301,7 @@ struct ContentView: View {
                     engine.handleSkip()
                 }
                 .buttonStyle(MutedButtonStyle())
+                .accessibilityLabel("Skip break")
             }
         }
     }
@@ -318,6 +328,8 @@ struct ContentView: View {
                 .padding(.leading, 4)
         }
         .padding(.top, 18)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Cycle \(engine.completedCycles % engine.mode.cyclesBeforeLong) of \(engine.mode.cyclesBeforeLong) until long break")
     }
 
     // MARK: - Footer
@@ -352,6 +364,7 @@ struct ContentView: View {
             .font(.system(size: 12))
             .foregroundColor(.textTertiary)
             .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss hint")
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)

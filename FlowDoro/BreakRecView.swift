@@ -86,6 +86,7 @@ struct BreakRecView: View {
                     .foregroundColor(.textTertiary)
                     .buttonStyle(.plain)
                     .padding(.bottom, 24)
+                    .accessibilityLabel("Skip break and keep working")
                 }
                 .background(
                     RoundedRectangle(cornerRadius: 20)
@@ -113,5 +114,6 @@ struct BreakRecView: View {
                 )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("\(label) break")
     }
 }

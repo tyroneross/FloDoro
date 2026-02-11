@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import CSQLite
+import os.log
 
 /// Tracks which applications the user is actively using.
 /// Monitors the frontmost (active) application every 2 seconds.
@@ -8,6 +9,8 @@ import CSQLite
 @MainActor
 final class AppActivityTracker: ObservableObject {
     static let shared = AppActivityTracker()
+
+    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.flodoro", category: "activity")
 
     /// Current active app info
     @Published private(set) var currentApp: String = ""
@@ -23,8 +26,18 @@ final class AppActivityTracker: ObservableObject {
     private var db: OpaquePointer?
     private let dbPath: String
 
+    private static let dateFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        return df
+    }()
+
     private init() {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            Self.logger.fault("Unable to locate Application Support directory")
+            dbPath = ""
+            return
+        }
         let appDir = appSupport.appendingPathComponent("FlowDoro", isDirectory: true)
         try? FileManager.default.createDirectory(at: appDir, withIntermediateDirectories: true)
         dbPath = appDir.appendingPathComponent("activity.db").path
@@ -43,7 +56,15 @@ final class AppActivityTracker: ObservableObject {
 
     private func openDatabase() {
         if sqlite3_open(dbPath, &db) != SQLITE_OK {
-            print("[FlowDoro Activity] DB open failed: \(String(cString: sqlite3_errmsg(db)))")
+            let errMsg = db.flatMap { String(cString: sqlite3_errmsg($0)) } ?? "unknown"
+            Self.logger.error("DB open failed: \(errMsg, privacy: .public)")
+        }
+        // Enable WAL mode for better concurrency and crash safety
+        var walErr: UnsafeMutablePointer<CChar>?
+        sqlite3_exec(db, "PRAGMA journal_mode=WAL;", nil, nil, &walErr)
+        if let walErr = walErr {
+            Self.logger.warning("WAL mode error: \(String(cString: walErr), privacy: .public)")
+            sqlite3_free(walErr)
         }
     }
 
@@ -63,7 +84,7 @@ final class AppActivityTracker: ObservableObject {
         var errMsg: UnsafeMutablePointer<CChar>?
         if sqlite3_exec(db, sql, nil, nil, &errMsg) != SQLITE_OK {
             if let errMsg = errMsg {
-                print("[FlowDoro Activity] Table error: \(String(cString: errMsg))")
+                Self.logger.error("Table error: \(String(cString: errMsg), privacy: .public)")
                 sqlite3_free(errMsg)
             }
         }
@@ -114,9 +135,7 @@ final class AppActivityTracker: ObservableObject {
 
     private func recordUsage(appName: String, bundleID: String, durationSeconds: Int) {
         let now = Date()
-        let df = DateFormatter()
-        df.dateFormat = "yyyy-MM-dd"
-        let dateStr = df.string(from: now)
+        let dateStr = Self.dateFormatter.string(from: now)
         let hour = Calendar.current.component(.hour, from: now)
 
         let sql = "INSERT INTO app_usage (app_name, bundle_id, duration_seconds, date, hour, created_at) VALUES (?, ?, ?, ?, ?, ?);"
@@ -140,9 +159,7 @@ final class AppActivityTracker: ObservableObject {
     // MARK: - Query
 
     func refreshTodaySummary() {
-        let df = DateFormatter()
-        df.dateFormat = "yyyy-MM-dd"
-        let today = df.string(from: Date())
+        let today = Self.dateFormatter.string(from: Date())
 
         let sql = "SELECT app_name, SUM(duration_seconds) as total FROM app_usage WHERE date = ? GROUP BY app_name ORDER BY total DESC;"
         var stmt: OpaquePointer?
@@ -153,7 +170,8 @@ final class AppActivityTracker: ObservableObject {
 
         var results: [AppUsageEntry] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
-            let name = String(cString: sqlite3_column_text(stmt, 0))
+            guard let namePtr = sqlite3_column_text(stmt, 0) else { continue }
+            let name = String(cString: namePtr)
             let total = Int(sqlite3_column_int(stmt, 1))
             results.append(AppUsageEntry(appName: name, totalSeconds: total))
         }
@@ -171,8 +189,9 @@ final class AppActivityTracker: ObservableObject {
 
         var results: [HourlyUsage] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
+            guard let namePtr = sqlite3_column_text(stmt, 1) else { continue }
             let hour = Int(sqlite3_column_int(stmt, 0))
-            let name = String(cString: sqlite3_column_text(stmt, 1))
+            let name = String(cString: namePtr)
             let total = Int(sqlite3_column_int(stmt, 2))
             results.append(HourlyUsage(hour: hour, appName: name, totalSeconds: total))
         }

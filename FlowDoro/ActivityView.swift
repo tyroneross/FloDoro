@@ -57,6 +57,7 @@ struct ActivityView: View {
                             .font(.system(size: 13))
                             .foregroundColor(.textSecondary)
                             .buttonStyle(.plain)
+                            .accessibilityLabel("Close app activity")
                         }
                         .padding(.horizontal, 20)
                     }
