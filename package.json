@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@tyroneross/interface-built-right": "^0.4.7",
+    "@tyroneross/navgator": "^0.1.1"
+  }
+}

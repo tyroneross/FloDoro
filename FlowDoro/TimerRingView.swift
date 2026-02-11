@@ -44,5 +44,8 @@ struct TimerRingView: View {
             }
         }
         .frame(width: ringSize, height: ringSize)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Timer: \(displayTime)\(subtitle.isEmpty ? "" : ", \(subtitle)")")
+        .accessibilityValue("\(Int(progress * 100)) percent complete")
     }
 }

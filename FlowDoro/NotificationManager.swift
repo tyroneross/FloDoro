@@ -1,12 +1,15 @@
 import Foundation
 import AppKit
 import UserNotifications
+import os.log
 
 /// Handles macOS notification center integration.
 /// Respects system Do Not Disturb / Focus modes automatically.
 /// When `silent`: uses `.passive` interruption level (no sound, just notification center entry).
 final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     static let shared = NotificationManager()
+
+    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.flodoro", category: "notifications")
 
     private override init() {
         super.init()
@@ -26,10 +29,10 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         isAvailable = true
         center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             if let error = error {
-                print("[FlowDoro] Notification auth error: \(error.localizedDescription)")
+                Self.logger.error("Notification auth error: \(error.localizedDescription, privacy: .public)")
             }
             if !granted {
-                print("[FlowDoro] Notification permission denied — will rely on visual indicators only")
+                Self.logger.info("Notification permission denied — will rely on visual indicators only")
             }
         }
     }
@@ -63,7 +66,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("[FlowDoro] Notification send error: \(error.localizedDescription)")
+                Self.logger.error("Notification send error: \(error.localizedDescription, privacy: .public)")
             }
         }
     }

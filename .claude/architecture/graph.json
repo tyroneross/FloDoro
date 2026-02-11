@@ -1,0 +1,22 @@
+{
+  "nodes": [
+    {
+      "id": "COMP_npm__tyroneross_interfac_xnbc",
+      "name": "@tyroneross/interface-built-right",
+      "type": "npm",
+      "layer": "backend"
+    },
+    {
+      "id": "COMP_npm__tyroneross_navgator_7118",
+      "name": "@tyroneross/navgator",
+      "type": "npm",
+      "layer": "backend"
+    }
+  ],
+  "edges": [],
+  "metadata": {
+    "generated_at": 1770775731457,
+    "component_count": 2,
+    "connection_count": 0
+  }
+}

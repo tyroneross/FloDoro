@@ -93,6 +93,18 @@ struct SessionEntry: Identifiable, Codable {
     let date: String
     let createdAt: Date
 
+    private static let dateFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.dateStyle = .short
+        return df
+    }()
+
+    private static let timeFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.timeStyle = .short
+        return df
+    }()
+
     init(mode: String, focusSeconds: Int, stopReason: String, signals: [String]? = nil) {
         self.id = UUID()
         self.mode = mode
@@ -102,13 +114,9 @@ struct SessionEntry: Identifiable, Codable {
         self.signals = signals
         self.createdAt = Date()
 
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        self.date = formatter.string(from: Date())
-
-        let timeFormatter = DateFormatter()
-        timeFormatter.timeStyle = .short
-        self.timestamp = timeFormatter.string(from: Date())
+        let now = Date()
+        self.date = Self.dateFormatter.string(from: now)
+        self.timestamp = Self.timeFormatter.string(from: now)
     }
 }
 

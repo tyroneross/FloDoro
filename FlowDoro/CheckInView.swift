@@ -38,6 +38,7 @@ struct CheckInView: View {
                             .frame(height: 36)
                             .background(RoundedRectangle(cornerRadius: 8).fill(accent))
                             .buttonStyle(.plain)
+                            .accessibilityLabel("Take a break")
 
                             Button("Keep going") {
                                 engine.dismissCheckIn()
@@ -48,6 +49,7 @@ struct CheckInView: View {
                             .frame(height: 36)
                             .background(RoundedRectangle(cornerRadius: 8).fill(Color(red: 0.953, green: 0.957, blue: 0.961)))
                             .buttonStyle(.plain)
+                            .accessibilityLabel("Dismiss check-in and keep going")
                         }
                     }
                 }
