@@ -20,7 +20,7 @@ struct MenuBarLabel: View {
             return "timer"
         case .work:
             switch engine.mode.type {
-            case .f1: return "sparkles"
+            case .adaptive: return "sparkles"
             case .flow: return "wind"
             case .timer: return "brain.head.profile"
             }

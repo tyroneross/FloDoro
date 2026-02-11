@@ -50,7 +50,7 @@ func modeColors(for mode: WorkMode, isBreak: Bool) -> ModeColorSet {
         return ModeColorSet(accent: .timerAccent, shadow: .timerAccent.opacity(0.2), bg: .timerAccent.opacity(0.06))
     case .flow:
         return ModeColorSet(accent: .flowAccent, shadow: .flowAccent.opacity(0.2), bg: .flowAccent.opacity(0.06))
-    case .f1:
+    case .adaptive:
         return ModeColorSet(accent: .f1Accent, shadow: .f1Accent.opacity(0.2), bg: .f1Accent.opacity(0.06))
     }
 }

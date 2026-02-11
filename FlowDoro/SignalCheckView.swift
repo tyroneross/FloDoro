@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// F1 signal check-in modal
+/// Adaptive signal check-in modal
 struct SignalCheckView: View {
     @ObservedObject var engine: TimerEngine
 

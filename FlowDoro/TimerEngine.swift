@@ -38,6 +38,22 @@ final class TimerEngine: ObservableObject {
     // MARK: - Computed
 
     var mode: WorkMode { ALL_MODES[selectedModeIndex] }
+
+    /// For custom mode, re-reads UserDefaults to pick up changed durations.
+    var effectiveMode: WorkMode {
+        guard mode.id == "custom" else { return mode }
+        let w = UserDefaults.standard.object(forKey: "customWorkMin") as? Int ?? 25
+        let b = UserDefaults.standard.object(forKey: "customBreakMin") as? Int ?? 5
+        return WorkMode(
+            id: mode.id, label: mode.label,
+            work: w, breakMin: b,
+            longBreak: mode.longBreak, cyclesBeforeLong: mode.cyclesBeforeLong,
+            desc: mode.desc, best: mode.best,
+            type: mode.type, hardCap: mode.hardCap,
+            escalateHint: mode.escalateHint
+        )
+    }
+
     var isFlowType: Bool { mode.isFlowType }
     var isBreak: Bool { phase.isBreak }
     var breakEnded: Bool { isBreak && timeLeft == 0 && totalTime > 0 }
@@ -79,7 +95,7 @@ final class TimerEngine: ObservableObject {
         case .idle: return "Ready"
         case .work:
             switch mode.type {
-            case .f1: return "Discovering"
+            case .adaptive: return "Discovering"
             case .flow: return "Flowing"
             case .timer: return "Focus"
             }
@@ -91,7 +107,7 @@ final class TimerEngine: ObservableObject {
     var displayTime: String {
         switch phase {
         case .idle:
-            if let w = mode.work { return formatTime(w * 60) }
+            if let w = effectiveMode.work { return formatTime(w * 60) }
             return "—:—"
         case .work:
             return isFlowType ? formatTime(elapsed) : formatTime(timeLeft)
@@ -101,15 +117,15 @@ final class TimerEngine: ObservableObject {
     }
 
     // Analytics
-    var f1Sessions: [SessionEntry] {
-        sessionLog.filter { $0.mode == "f1" && $0.focusMinutes > 0 }
+    var adaptiveSessions: [SessionEntry] {
+        sessionLog.filter { ($0.mode == "adaptive" || $0.mode == "f1") && $0.focusMinutes > 0 }
     }
     var flowSessions: [SessionEntry] {
-        sessionLog.filter { ($0.mode == "flow" || $0.mode == "f1") && $0.focusMinutes > 0 }
+        sessionLog.filter { ($0.mode == "flow" || $0.mode == "adaptive" || $0.mode == "f1") && $0.focusMinutes > 0 }
     }
     var optimalWindow: Int? {
-        guard f1Sessions.count >= 3 else { return nil }
-        let sorted = f1Sessions.map(\.focusMinutes).sorted()
+        guard adaptiveSessions.count >= 3 else { return nil }
+        let sorted = adaptiveSessions.map(\.focusMinutes).sorted()
         return sorted[sorted.count / 2]
     }
     var avgFlowDuration: Int? {
@@ -278,7 +294,7 @@ final class TimerEngine: ObservableObject {
         } else if isFlowType {
             breakMin = recommendedBreak ?? computeBreak(focusSeconds: elapsed)
         } else {
-            breakMin = isLong ? mode.longBreak : (mode.breakMin ?? 5)
+            breakMin = isLong ? effectiveMode.longBreak : (effectiveMode.breakMin ?? 5)
         }
 
         phase = isLong ? .longBreak : .shortBreak
@@ -306,7 +322,7 @@ final class TimerEngine: ObservableObject {
         if isFlowType {
             timeLeft = 0
             totalTime = 0
-        } else if let w = mode.work {
+        } else if let w = effectiveMode.work {
             let secs = w * 60
             timeLeft = secs
             totalTime = secs
@@ -354,7 +370,7 @@ final class TimerEngine: ObservableObject {
         stopTick()
         isRunning = false
         showCheckIn = false
-        if mode.type == .f1 {
+        if mode.type == .adaptive {
             showSignalCheck = true
         } else {
             handleWorkComplete(stopReason: "manual", signals: [])

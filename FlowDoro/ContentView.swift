@@ -5,6 +5,7 @@ struct ContentView: View {
     @ObservedObject var activityTracker: AppActivityTracker = .shared
     @State private var showActivity: Bool = false
     @State private var showSettings: Bool = false
+    @State private var showCustomize: Bool = false
 
     private var colors: ModeColorSet {
         modeColors(for: engine.mode, isBreak: engine.isBreak)
@@ -90,6 +91,10 @@ struct ContentView: View {
 
             if showSettings {
                 SettingsView(isPresented: $showSettings)
+            }
+
+            if showCustomize {
+                CustomizeView(isPresented: $showCustomize)
             }
 
             // Escalation hint toast
@@ -204,7 +209,10 @@ struct ContentView: View {
     private var modeInfoView: some View {
         VStack(spacing: 2) {
             HStack(spacing: 4) {
-                if let w = engine.mode.work, let b = engine.mode.breakMin {
+                if engine.mode.id == "custom" {
+                    let em = engine.effectiveMode
+                    Text("\(em.work ?? 25):\(String(format: "%02d", em.breakMin ?? 5)) work/break")
+                } else if let w = engine.mode.work, let b = engine.mode.breakMin {
                     Text("\(w):\(String(format: "%02d", b)) work/break")
                 } else {
                     Text("Variable work/break")
@@ -219,6 +227,16 @@ struct ContentView: View {
             Text(engine.mode.desc)
                 .font(.system(size: 12))
                 .foregroundColor(.textTertiary)
+
+            if engine.mode.id == "custom" && engine.phase == .idle {
+                Button("Customize") {
+                    showCustomize = true
+                }
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.timerAccent)
+                .padding(.top, 4)
+                .buttonStyle(.plain)
+            }
         }
         .padding(.top, 12)
     }
