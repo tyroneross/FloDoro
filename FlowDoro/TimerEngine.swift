@@ -432,6 +432,9 @@ final class TimerEngine: ObservableObject {
             body = "Great work. Take a break."
         }
         NotificationManager.shared.send(title: title, body: body, silent: silent)
+
+        // Visual alert (floating window or full-screen overlay, based on user preference)
+        VisualAlertManager.shared.showAlert(title: title, body: body)
     }
 
     private func playChime() {

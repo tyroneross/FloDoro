@@ -4,6 +4,7 @@ struct ContentView: View {
     @ObservedObject var engine: TimerEngine
     @ObservedObject var activityTracker: AppActivityTracker = .shared
     @State private var showActivity: Bool = false
+    @State private var showSettings: Bool = false
 
     private var colors: ModeColorSet {
         modeColors(for: engine.mode, isBreak: engine.isBreak)
@@ -87,6 +88,10 @@ struct ContentView: View {
                 ActivityView(tracker: activityTracker, isPresented: $showActivity)
             }
 
+            if showSettings {
+                SettingsView(isPresented: $showSettings)
+            }
+
             // Escalation hint toast
             if engine.showEscalateHint, let hint = engine.mode.escalateHint {
                 VStack {
@@ -128,6 +133,14 @@ struct ContentView: View {
             Spacer()
 
             HStack(spacing: 8) {
+                Button {
+                    showSettings.toggle()
+                } label: {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(SecondaryButtonStyle())
+
                 Button {
                     showActivity.toggle()
                 } label: {

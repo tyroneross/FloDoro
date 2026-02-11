@@ -18,6 +18,7 @@ final class AppActivityTracker: ObservableObject {
 
     private var pollTimer: Timer?
     private var lastApp: String = ""
+    private var lastBundleID: String = ""
     private var lastSwitchTime: Date = Date()
 
     private var db: OpaquePointer?
@@ -92,7 +93,7 @@ final class AppActivityTracker: ObservableObject {
         if appName != lastApp && !lastApp.isEmpty {
             let duration = Int(Date().timeIntervalSince(lastSwitchTime))
             if duration >= 2 { // ignore sub-2s flickers
-                recordUsage(appName: lastApp, bundleID: currentAppBundleID, durationSeconds: duration)
+                recordUsage(appName: lastApp, bundleID: lastBundleID, durationSeconds: duration)
             }
             lastSwitchTime = Date()
         } else if lastApp.isEmpty {
@@ -100,6 +101,7 @@ final class AppActivityTracker: ObservableObject {
         }
 
         lastApp = appName
+        lastBundleID = bundleID
     }
 
     /// Flush the current app's accumulated time (call on timer completion or app pause)
@@ -107,7 +109,7 @@ final class AppActivityTracker: ObservableObject {
         guard !lastApp.isEmpty else { return }
         let duration = Int(Date().timeIntervalSince(lastSwitchTime))
         if duration >= 2 {
-            recordUsage(appName: lastApp, bundleID: currentAppBundleID, durationSeconds: duration)
+            recordUsage(appName: lastApp, bundleID: lastBundleID, durationSeconds: duration)
         }
         lastSwitchTime = Date()
     }

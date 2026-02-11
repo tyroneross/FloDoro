@@ -11,6 +11,8 @@ struct FlowDoroApp: App {
         _ = ScreenShareDetector.shared
         // Start app activity tracking
         _ = AppActivityTracker.shared
+        // Initialize visual alert manager
+        _ = VisualAlertManager.shared
     }
 
     var body: some Scene {
