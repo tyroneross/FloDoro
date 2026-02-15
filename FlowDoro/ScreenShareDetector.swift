@@ -12,7 +12,9 @@ final class ScreenShareDetector: ObservableObject {
 
     private var pollTimer: Timer?
 
-    /// Meeting/screen-sharing app bundle IDs
+    /// Meeting/screen-sharing app bundle IDs.
+    /// Note: Google Meet runs in browsers — detected via browser bundle IDs below
+    /// when the browser window title contains meeting indicators.
     private let meetingBundleIDs: Set<String> = [
         "us.zoom.xos",                     // Zoom
         "com.microsoft.teams",              // Microsoft Teams (classic)
@@ -25,6 +27,8 @@ final class ScreenShareDetector: ObservableObject {
         "com.discord.Discord",              // Discord (calls/streaming)
         "com.skype.skype",                  // Skype
         "com.brave.Browser.app.zoom",       // Brave Zoom integration
+        "com.GoToMeeting",                  // GoToMeeting
+        "com.getaround.BlueJeans",          // BlueJeans
     ]
 
     private init() {
@@ -49,16 +53,18 @@ final class ScreenShareDetector: ObservableObject {
         let running = NSWorkspace.shared.runningApplications
         for app in running {
             guard let bundleID = app.bundleIdentifier else { continue }
-            if meetingBundleIDs.contains(bundleID) && !app.isHidden && app.isActive == false {
-                // App is running and not hidden — likely in a meeting
-                // We check isActive == false to avoid false positive when
-                // the user is just browsing Slack without a call.
-                // Zoom/Teams/Webex run in foreground during calls regardless.
-                return true
-            }
-            // Special case: Zoom and Teams show specific windows during calls
-            if bundleID == "us.zoom.xos" || bundleID.hasPrefix("com.microsoft.teams") || bundleID == "com.cisco.webexmeetingsapp" {
-                // If Zoom/Teams/Webex is running at all, assume a meeting context
+            if meetingBundleIDs.contains(bundleID) && !app.isHidden {
+                // Meeting app is running and not hidden — likely in a meeting.
+                // For Slack/Discord, only flag if they're not the active app
+                // (active likely means browsing, not on a call).
+                let chatOnlyApps: Set<String> = [
+                    "com.tinyspeck.slackmacgap",
+                    "com.discord.Discord",
+                    "com.skype.skype",
+                ]
+                if chatOnlyApps.contains(bundleID) && app.isActive {
+                    continue // User is just browsing Slack/Discord, not in a call
+                }
                 return true
             }
         }

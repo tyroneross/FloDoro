@@ -123,7 +123,7 @@ struct SessionLogView: View {
                 ForEach(Array(sessions.enumerated()), id: \.offset) { _, s in
                     let height = max(4.0, Double(s.focusMinutes) / Double(maxMin) * 44.0)
                     RoundedRectangle(cornerRadius: 3)
-                        .fill(s.mode == "f1" ? Color.f1Accent.opacity(0.7) : Color.flowAccent.opacity(0.7))
+                        .fill((s.mode == "adaptive" || s.mode == "f1") ? Color.f1Accent.opacity(0.7) : Color.flowAccent.opacity(0.7))
                         .frame(maxWidth: .infinity)
                         .frame(height: CGFloat(height))
                         .help("\(s.focusMinutes)m (\(s.mode))")

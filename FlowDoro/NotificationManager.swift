@@ -15,10 +15,18 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         super.init()
     }
 
+    /// Whether notifications are available (requires a proper app bundle)
+    private(set) var isAvailable = false
+
     /// Request notification permission and set self as delegate
     func setup() {
+        guard Bundle.main.bundleIdentifier != nil else {
+            print("[FlowDoro] No bundle identifier — notifications disabled (run as .app bundle for full features)")
+            return
+        }
         let center = UNUserNotificationCenter.current()
         center.delegate = self
+        isAvailable = true
         center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             if let error = error {
                 Self.logger.error("Notification auth error: \(error.localizedDescription, privacy: .public)")
@@ -31,6 +39,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
     /// Send a notification banner
     func send(title: String, body: String, silent: Bool) {
+        guard isAvailable else { return }
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body

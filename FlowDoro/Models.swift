@@ -3,7 +3,7 @@ import Foundation
 // MARK: - Work Modes
 
 enum ModeType: String, Codable {
-    case timer, flow, f1
+    case timer, flow, adaptive
 }
 
 struct WorkMode: Identifiable {
@@ -19,7 +19,7 @@ struct WorkMode: Identifiable {
     let hardCap: Int?       // minutes
     let escalateHint: String?
 
-    var isFlowType: Bool { type == .flow || type == .f1 }
+    var isFlowType: Bool { type == .flow || type == .adaptive }
 }
 
 let ALL_MODES: [WorkMode] = [
@@ -48,6 +48,16 @@ let ALL_MODES: [WorkMode] = [
         escalateHint: "Peaking before the timer? Try Flow."
     ),
     WorkMode(
+        id: "custom", label: "Custom",
+        work: UserDefaults.standard.object(forKey: "customWorkMin") as? Int ?? 25,
+        breakMin: UserDefaults.standard.object(forKey: "customBreakMin") as? Int ?? 5,
+        longBreak: 15, cyclesBeforeLong: 4,
+        desc: "Your rhythm · Set your own durations",
+        best: "Whatever works for you",
+        type: .timer, hardCap: nil,
+        escalateHint: nil
+    ),
+    WorkMode(
         id: "flow", label: "Flow",
         work: nil, breakMin: nil, longBreak: 20, cyclesBeforeLong: 3,
         desc: "Adaptive · Check-ins guide your rhythm",
@@ -56,11 +66,11 @@ let ALL_MODES: [WorkMode] = [
         escalateHint: nil
     ),
     WorkMode(
-        id: "f1", label: "F1 ★",
+        id: "adaptive", label: "Adaptive",
         work: nil, breakMin: nil, longBreak: 25, cyclesBeforeLong: 2,
         desc: "Signal-based · Discovers your optimal window",
         best: "High-stakes deep work, finding your rhythm",
-        type: .f1, hardCap: 90,
+        type: .adaptive, hardCap: 90,
         escalateHint: nil
     ),
 ]

@@ -25,6 +25,11 @@ DerivedData/
 # Node (tooling)
 node_modules/
 
+# Build artifacts
+*.app/
+*.dmg
+.dmg-staging/
+
 # Temporary
 *.swp
 *.swo
