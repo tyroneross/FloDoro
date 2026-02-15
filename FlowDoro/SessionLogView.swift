@@ -31,6 +31,7 @@ struct SessionLogView: View {
                             .font(.system(size: 13))
                             .foregroundColor(.textSecondary)
                             .buttonStyle(.plain)
+                            .accessibilityLabel("Close session log")
                         }
                         .padding(.horizontal, 20)
 

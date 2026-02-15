@@ -1,0 +1,44 @@
+{
+  "version": "1.0.0",
+  "last_scan": 1770775731455,
+  "project_path": "/home/user/FloDoro",
+  "components": {
+    "by_name": {
+      "@tyroneross/interface-built-right": "COMP_npm__tyroneross_interfac_xnbc",
+      "@tyroneross/navgator": "COMP_npm__tyroneross_navgator_7118"
+    },
+    "by_type": {
+      "npm": [
+        "COMP_npm__tyroneross_interfac_xnbc",
+        "COMP_npm__tyroneross_navgator_7118"
+      ]
+    },
+    "by_layer": {
+      "backend": [
+        "COMP_npm__tyroneross_interfac_xnbc",
+        "COMP_npm__tyroneross_navgator_7118"
+      ]
+    },
+    "by_status": {
+      "active": [
+        "COMP_npm__tyroneross_interfac_xnbc",
+        "COMP_npm__tyroneross_navgator_7118"
+      ]
+    }
+  },
+  "connections": {
+    "by_type": {},
+    "by_from": {},
+    "by_to": {}
+  },
+  "stats": {
+    "total_components": 2,
+    "total_connections": 0,
+    "components_by_type": {
+      "npm": 2
+    },
+    "connections_by_type": {},
+    "outdated_count": 0,
+    "vulnerable_count": 0
+  }
+}

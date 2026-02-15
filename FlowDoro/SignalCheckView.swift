@@ -62,6 +62,8 @@ struct SignalCheckView: View {
                                 )
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel(sig.label)
+                            .accessibilityAddTraits(engine.selectedSignals.contains(sig.id) ? .isSelected : [])
                         }
                     }
                     .padding(.horizontal, 24)
@@ -90,8 +92,9 @@ struct SignalCheckView: View {
                         .frame(height: 48)
                         .background(RoundedRectangle(cornerRadius: 12).fill(Color(red: 0.953, green: 0.957, blue: 0.961)))
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Take break without logging signals")
 
-                        Button(engine.selectedSignals.count >= 2 ? "Log & break" : "Log & break") {
+                        Button("Log & break") {
                             engine.handleSignalSubmit()
                         }
                         .font(.system(size: 14, weight: .semibold))
@@ -100,6 +103,7 @@ struct SignalCheckView: View {
                         .frame(height: 48)
                         .background(RoundedRectangle(cornerRadius: 12).fill(colors.accent))
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Log selected signals and take break")
                     }
                     .padding(.horizontal, 24)
                     .padding(.bottom, 24)

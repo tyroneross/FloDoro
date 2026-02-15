@@ -71,6 +71,7 @@ struct MenuBarContentView: View {
                         .background(RoundedRectangle(cornerRadius: 10).fill(colors.accent))
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(mainButtonLabel)
 
                 if engine.phase != .idle {
                     Button {
@@ -87,6 +88,7 @@ struct MenuBarContentView: View {
                             )
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Reset timer")
                 }
             }
 
@@ -107,6 +109,7 @@ struct MenuBarContentView: View {
                         )
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Stop flow session")
             }
 
             Divider()
@@ -130,6 +133,7 @@ struct MenuBarContentView: View {
                 .foregroundColor(.textSecondary)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Open FlowDoro main window")
         }
         .padding(16)
         .frame(width: 260)

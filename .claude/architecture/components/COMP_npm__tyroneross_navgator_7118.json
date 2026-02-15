@@ -1,0 +1,28 @@
+{
+  "component_id": "COMP_npm__tyroneross_navgator_7118",
+  "name": "@tyroneross/navgator",
+  "version": "0.1.1",
+  "type": "npm",
+  "role": {
+    "purpose": "npm package",
+    "layer": "backend",
+    "critical": true
+  },
+  "source": {
+    "detection_method": "auto",
+    "config_files": [
+      "/home/user/FloDoro/package.json"
+    ],
+    "confidence": 1
+  },
+  "connects_to": [],
+  "connected_from": [],
+  "status": "active",
+  "tags": [
+    "core",
+    "npm",
+    "backend"
+  ],
+  "timestamp": 1770775731440,
+  "last_updated": 1770775731440
+}
