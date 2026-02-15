@@ -47,10 +47,15 @@ final class FocusSession {
     /// Convert back to SessionEntry for compatibility with existing TimerEngine
     func toSessionEntry() -> SessionEntry {
         return SessionEntry(
+            id: id,
             mode: mode,
             focusSeconds: focusSeconds,
+            focusMinutes: focusMinutes,
             stopReason: stopReason,
-            signals: signals?.components(separatedBy: ",").filter { !$0.isEmpty }
+            signals: signals?.components(separatedBy: ",").filter { !$0.isEmpty },
+            timestamp: sessionTime,
+            date: sessionDate,
+            createdAt: createdAt
         )
     }
 }

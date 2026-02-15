@@ -12,7 +12,12 @@ let package = Package(
         .executableTarget(
             name: "FlowDoro",
             dependencies: ["CSQLite"],
-            path: "FlowDoro"
+            path: "FlowDoro",
+            exclude: [
+                "Sync",                     // SwiftData @Model requires Xcode; future feature
+                "FlowDoro.entitlements",     // Xcode resource, not compiled
+                "PrivacyInfo.xcprivacy",     // Xcode resource, not compiled
+            ]
         ),
     ]
 )

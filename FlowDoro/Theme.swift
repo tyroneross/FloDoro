@@ -64,3 +64,10 @@ func checkInAccentColor(for level: CheckInLevel) -> Color {
     case .urgent: return .levelUrgent
     }
 }
+
+/// Assign a consistent color to an app name based on its hash
+func appColor(_ name: String) -> Color {
+    let colors: [Color] = [.timerAccent, .flowAccent, .f1Accent, .breakAccent, .levelFirm, .levelStrong]
+    let hash = abs(name.hashValue)
+    return colors[hash % colors.count]
+}

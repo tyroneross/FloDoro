@@ -150,13 +150,6 @@ struct ActivityView: View {
 
     // MARK: - Helpers
 
-    private func appColor(_ name: String) -> Color {
-        // Assign consistent colors based on app name hash
-        let colors: [Color] = [.timerAccent, .flowAccent, .f1Accent, .breakAccent, .levelFirm, .levelStrong]
-        let hash = abs(name.hashValue)
-        return colors[hash % colors.count]
-    }
-
     private func formatTotalTime(_ seconds: Int) -> String {
         let hours = seconds / 3600
         let minutes = (seconds % 3600) / 60

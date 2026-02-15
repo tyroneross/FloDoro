@@ -35,6 +35,20 @@ final class TimerEngine: ObservableObject {
     @Published var showEscalateHint: Bool = false
     @Published var graceActive: Bool = false
 
+    // Mode switch guard — allows switching within 60s of starting, locks after
+    @Published var showModeSwitchConfirm: Bool = false
+    @Published var pendingModeIndex: Int?
+    private var workStartedAt: Date?
+
+    /// True when the timer is in a work phase and the 60-second grace window has expired.
+    /// Breaks are never locked — switching during a break is always allowed.
+    var isModeSwitchLocked: Bool {
+        guard phase != .idle else { return false }
+        guard !phase.isBreak else { return false }
+        guard let started = workStartedAt else { return true }
+        return Date().timeIntervalSince(started) >= 60
+    }
+
     // MARK: - Computed
 
     var mode: WorkMode { ALL_MODES[selectedModeIndex] }
@@ -302,6 +316,7 @@ final class TimerEngine: ObservableObject {
         showCheckIn = false
         checkInData = nil
         lastCheckInMinute = -1
+        workStartedAt = Date()
 
         if isFlowType {
             timeLeft = 0
@@ -348,6 +363,9 @@ final class TimerEngine: ObservableObject {
         showBreakRec = false
         recommendedBreak = nil
         lastCheckInMinute = -1
+        workStartedAt = nil
+        showModeSwitchConfirm = false
+        pendingModeIndex = nil
     }
 
     func handleFlowStop() {
@@ -401,6 +419,80 @@ final class TimerEngine: ObservableObject {
         } else {
             selectedSignals.insert(id)
         }
+    }
+
+    // MARK: - Mode Switch Guard
+
+    /// Called when user taps a different mode while timer is active.
+    /// During breaks: switch freely (next cycle uses new mode).
+    /// During work, within 60s of starting: switch immediately.
+    /// During work, after 60s: show confirmation dialog.
+    func requestModeSwitch(to index: Int) {
+        guard index != selectedModeIndex else { return }
+
+        if phase == .idle {
+            selectedModeIndex = index
+            return
+        }
+
+        // During a break — switch mode freely for the next work cycle
+        if phase.isBreak {
+            switchModeDuringBreak(to: index)
+            return
+        }
+
+        // Within the 60-second grace window — allow direct switch
+        if let started = workStartedAt, Date().timeIntervalSince(started) < 60 {
+            applyModeSwitch(to: index)
+            return
+        }
+
+        // Locked — ask for confirmation
+        pendingModeIndex = index
+        showModeSwitchConfirm = true
+    }
+
+    /// Switch mode during a break — preserves the running break timer,
+    /// only changes the mode so the next work phase uses the new settings.
+    private func switchModeDuringBreak(to index: Int) {
+        selectedModeIndex = index
+        workStartedAt = nil
+    }
+
+    func confirmModeSwitch() {
+        guard let index = pendingModeIndex else { return }
+        showModeSwitchConfirm = false
+        applyModeSwitch(to: index)
+        pendingModeIndex = nil
+    }
+
+    func cancelModeSwitch() {
+        showModeSwitchConfirm = false
+        pendingModeIndex = nil
+    }
+
+    private func applyModeSwitch(to index: Int) {
+        stopTick()
+        graceTimer?.invalidate()
+        escalateTimer?.invalidate()
+        phase = .idle
+        timeLeft = 0
+        totalTime = 0
+        elapsed = 0
+        isRunning = false
+        completedCycles = 0
+        graceActive = false
+        showCheckIn = false
+        checkInData = nil
+        showSignalCheck = false
+        selectedSignals = []
+        showEscalateHint = false
+        showBreakRec = false
+        recommendedBreak = nil
+        lastCheckInMinute = -1
+        workStartedAt = nil
+
+        selectedModeIndex = index
     }
 
     func dismissCheckIn() {

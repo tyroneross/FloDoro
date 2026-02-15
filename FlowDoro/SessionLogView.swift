@@ -3,6 +3,7 @@ import SwiftUI
 /// Session log modal with analytics
 struct SessionLogView: View {
     @ObservedObject var engine: TimerEngine
+    @State private var selectedSession: SessionEntry?
 
     var body: some View {
         ZStack {
@@ -63,6 +64,10 @@ struct SessionLogView: View {
                             LazyVStack(spacing: 6) {
                                 ForEach(engine.sessionLog.reversed()) { session in
                                     sessionRow(session)
+                                        .contentShape(Rectangle())
+                                        .onTapGesture {
+                                            selectedSession = session
+                                        }
                                 }
                             }
                             .padding(.horizontal, 20)
@@ -77,6 +82,19 @@ struct SessionLogView: View {
                 )
                 .frame(maxWidth: 420, maxHeight: 500)
                 .padding(.horizontal, 20)
+            }
+
+            // Session detail overlay
+            if let selected = selectedSession {
+                SessionDetailView(
+                    session: selected,
+                    isPresented: Binding(
+                        get: { selectedSession != nil },
+                        set: { if !$0 { selectedSession = nil } }
+                    ),
+                    activityTracker: .shared
+                )
+                .transition(.opacity)
             }
         }
     }
@@ -165,9 +183,14 @@ struct SessionLogView: View {
                 }
             }
             Spacer()
-            Text(session.timestamp)
-                .font(.system(size: 11))
-                .foregroundColor(.textTertiary)
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(session.timestamp)
+                    .font(.system(size: 11))
+                    .foregroundColor(.textTertiary)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.textTertiary)
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)

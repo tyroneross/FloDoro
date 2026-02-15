@@ -4,13 +4,26 @@ import CSQLite
 import os.log
 
 /// Tracks which applications the user is actively using.
-/// Monitors the frontmost (active) application every 2 seconds.
+/// Monitors the frontmost (active) application every 2 seconds when enabled.
 /// Stores accumulated time per app in SQLite — completely local, no file content access.
+/// Requires explicit user opt-in via Settings toggle before tracking begins.
 @MainActor
 final class AppActivityTracker: ObservableObject {
     static let shared = AppActivityTracker()
 
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.flodoro", category: "activity")
+
+    /// Whether activity tracking is enabled (persisted across launches)
+    @Published var isEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(isEnabled, forKey: "activityTrackingEnabled")
+            if isEnabled {
+                beginTracking()
+            } else {
+                stopTracking()
+            }
+        }
+    }
 
     /// Current active app info
     @Published private(set) var currentApp: String = ""
@@ -34,6 +47,9 @@ final class AppActivityTracker: ObservableObject {
     }()
 
     private init() {
+        // Read persisted preference before any tracking starts
+        self.isEnabled = UserDefaults.standard.bool(forKey: "activityTrackingEnabled")
+
         guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
             Self.logger.fault("Unable to locate Application Support directory")
             dbPath = ""
@@ -45,7 +61,14 @@ final class AppActivityTracker: ObservableObject {
 
         openDatabase()
         createTable()
-        startTracking()
+
+        // Only start polling if user has opted in
+        if isEnabled {
+            beginTracking()
+        }
+
+        // Always load existing data for queries (session detail view needs this)
+        refreshTodaySummary()
     }
 
     deinit {
@@ -81,6 +104,7 @@ final class AppActivityTracker: ObservableObject {
             created_at REAL NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_app_usage_date ON app_usage(date);
+        CREATE INDEX IF NOT EXISTS idx_app_usage_created_at ON app_usage(created_at);
         """
         var errMsg: UnsafeMutablePointer<CChar>?
         if sqlite3_exec(db, sql, nil, nil, &errMsg) != SQLITE_OK {
@@ -91,15 +115,30 @@ final class AppActivityTracker: ObservableObject {
         }
     }
 
-    // MARK: - Tracking
+    // MARK: - Tracking Control
 
-    private func startTracking() {
+    /// Start polling the frontmost application
+    private func beginTracking() {
+        guard pollTimer == nil else { return } // already running
         checkActiveApp() // initial
         pollTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.checkActiveApp()
             }
         }
+        Self.logger.info("Activity tracking started")
+    }
+
+    /// Stop polling and clear live state
+    private func stopTracking() {
+        flushCurrentApp()
+        pollTimer?.invalidate()
+        pollTimer = nil
+        currentApp = ""
+        currentAppBundleID = ""
+        lastApp = ""
+        lastBundleID = ""
+        Self.logger.info("Activity tracking stopped")
     }
 
     private func checkActiveApp() {
@@ -178,6 +217,30 @@ final class AppActivityTracker: ObservableObject {
             results.append(AppUsageEntry(appName: name, totalSeconds: total))
         }
         todaySummary = results
+    }
+
+    /// Get app usage entries whose created_at falls within a time range.
+    /// Used to correlate app activity with a specific focus session.
+    func usageDuring(from startDate: Date, to endDate: Date) -> [AppUsageEntry] {
+        let startEpoch = startDate.timeIntervalSince1970
+        let endEpoch = endDate.timeIntervalSince1970
+
+        let sql = "SELECT app_name, SUM(duration_seconds) as total FROM app_usage WHERE created_at >= ? AND created_at <= ? GROUP BY app_name ORDER BY total DESC;"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
+        defer { sqlite3_finalize(stmt) }
+
+        sqlite3_bind_double(stmt, 1, startEpoch)
+        sqlite3_bind_double(stmt, 2, endEpoch)
+
+        var results: [AppUsageEntry] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            guard let namePtr = sqlite3_column_text(stmt, 0) else { continue }
+            let name = String(cString: namePtr)
+            let total = Int(sqlite3_column_int(stmt, 1))
+            results.append(AppUsageEntry(appName: name, totalSeconds: total))
+        }
+        return results
     }
 
     /// Get hourly breakdown for a specific date

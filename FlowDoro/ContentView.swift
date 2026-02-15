@@ -142,17 +142,31 @@ struct ContentView: View {
                 .buttonStyle(SecondaryButtonStyle())
 
                 Button {
-                    showActivity.toggle()
+                    if activityTracker.isEnabled {
+                        showActivity.toggle()
+                    } else {
+                        showSettings = true
+                    }
                 } label: {
                     Image(systemName: "chart.bar.fill")
                         .font(.system(size: 12))
                 }
                 .buttonStyle(SecondaryButtonStyle())
-                .accessibilityLabel("App activity")
+                .opacity(activityTracker.isEnabled ? 1 : 0.5)
+                .accessibilityLabel(activityTracker.isEnabled ? "App activity" : "Enable app tracking in Settings")
+                .help(activityTracker.isEnabled ? "App activity" : "Enable tracking in Settings")
 
                 if !engine.sessionLog.isEmpty {
-                    Button("Log (\(engine.sessionLog.count))") {
+                    Button {
                         engine.showLog.toggle()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "list.bullet")
+                                .font(.system(size: 12))
+                            Text("\(engine.sessionLog.count)")
+                                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                                .foregroundColor(.textTertiary)
+                        }
                     }
                     .buttonStyle(SecondaryButtonStyle())
                     .accessibilityLabel("Session log, \(engine.sessionLog.count) entries")
@@ -175,33 +189,45 @@ struct ContentView: View {
     private var modeSelectorView: some View {
         HStack(spacing: 4) {
             ForEach(Array(ALL_MODES.enumerated()), id: \.element.id) { index, m in
+                let isSelected = engine.selectedModeIndex == index
+                let isLocked = engine.isModeSwitchLocked && !isSelected
                 Button {
-                    if engine.phase == .idle {
-                        engine.selectedModeIndex = index
-                    }
+                    engine.requestModeSwitch(to: index)
                 } label: {
                     Text(m.label)
-                        .font(.system(size: 12, weight: engine.selectedModeIndex == index ? .semibold : .regular))
-                        .foregroundColor(engine.selectedModeIndex == index ? .textPrimary : .textSecondary)
+                        .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
+                        .foregroundColor(isSelected ? .textPrimary : (isLocked ? .textTertiary : .textSecondary))
                         .frame(maxWidth: .infinity)
                         .frame(height: 36)
                         .background(
                             RoundedRectangle(cornerRadius: 10)
-                                .fill(engine.selectedModeIndex == index ? Color.white : Color.clear)
-                                .shadow(color: engine.selectedModeIndex == index ? .black.opacity(0.08) : .clear, radius: 2, y: 1)
+                                .fill(isSelected ? Color.white : Color.clear)
+                                .shadow(color: isSelected ? .black.opacity(0.08) : .clear, radius: 2, y: 1)
                         )
                 }
                 .buttonStyle(.plain)
-                .opacity(engine.phase != .idle && engine.selectedModeIndex != index ? 0.35 : 1)
-                .disabled(engine.phase != .idle)
+                .opacity(isLocked ? 0.25 : (engine.phase != .idle && !isSelected ? 0.55 : 1))
                 .accessibilityLabel("\(m.label) mode")
-                .accessibilityAddTraits(engine.selectedModeIndex == index ? .isSelected : [])
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+                .accessibilityHint(isLocked ? "Timer is running. Tap to switch with confirmation." : "")
             }
         }
         .padding(3)
         .background(RoundedRectangle(cornerRadius: 13).fill(Color.surfaceLight))
         .padding(.horizontal, 20)
         .padding(.top, 16)
+        .alert("Switch Mode?", isPresented: $engine.showModeSwitchConfirm) {
+            Button("Switch", role: .destructive) {
+                engine.confirmModeSwitch()
+            }
+            Button("Cancel", role: .cancel) {
+                engine.cancelModeSwitch()
+            }
+        } message: {
+            if let idx = engine.pendingModeIndex {
+                Text("Switching to \(ALL_MODES[idx].label) will reset your current session. Are you sure?")
+            }
+        }
     }
 
     // MARK: - Mode Info

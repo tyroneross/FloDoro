@@ -93,6 +93,11 @@ struct SessionEntry: Identifiable, Codable {
     let date: String
     let createdAt: Date
 
+    /// Approximate start time of this session
+    var startedAt: Date {
+        createdAt.addingTimeInterval(-Double(focusSeconds))
+    }
+
     private static let dateFormatter: DateFormatter = {
         let df = DateFormatter()
         df.dateStyle = .short
@@ -105,6 +110,7 @@ struct SessionEntry: Identifiable, Codable {
         return df
     }()
 
+    /// Convenience init for new sessions (sets createdAt = now)
     init(mode: String, focusSeconds: Int, stopReason: String, signals: [String]? = nil) {
         self.id = UUID()
         self.mode = mode
@@ -117,6 +123,21 @@ struct SessionEntry: Identifiable, Codable {
         let now = Date()
         self.date = Self.dateFormatter.string(from: now)
         self.timestamp = Self.timeFormatter.string(from: now)
+    }
+
+    /// Full-fidelity init for database hydration — preserves all stored fields
+    init(id: UUID, mode: String, focusSeconds: Int, focusMinutes: Int,
+         stopReason: String, signals: [String]?, timestamp: String,
+         date: String, createdAt: Date) {
+        self.id = id
+        self.mode = mode
+        self.focusSeconds = focusSeconds
+        self.focusMinutes = focusMinutes
+        self.stopReason = stopReason
+        self.signals = signals
+        self.timestamp = timestamp
+        self.date = date
+        self.createdAt = createdAt
     }
 }
 

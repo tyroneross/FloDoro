@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @Binding var isPresented: Bool
     @AppStorage("visualAlertStyle") private var alertStyle: Int = 0
+    @ObservedObject private var activityTracker = AppActivityTracker.shared
 
     var body: some View {
         ZStack {
@@ -100,6 +101,43 @@ struct SettingsView: View {
                     } else {
                         Spacer().frame(height: 8)
                     }
+
+                    // APP ACTIVITY section
+                    Text("APP ACTIVITY")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.textSecondary)
+                        .tracking(0.5)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 8)
+
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Track app usage")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.textPrimary)
+                            Text("See which apps you use during focus sessions")
+                                .font(.system(size: 12))
+                                .foregroundColor(.textTertiary)
+                        }
+                        Spacer()
+                        Toggle("", isOn: $activityTracker.isEnabled)
+                            .toggleStyle(.switch)
+                            .labelsHidden()
+                            .tint(.timerAccent)
+                    }
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 52)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.cardBg)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.borderLight, lineWidth: 1)
+                            )
+                    )
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 16)
                 }
                 .background(
                     RoundedRectangle(cornerRadius: 20)

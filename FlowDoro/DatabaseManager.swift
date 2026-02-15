@@ -123,12 +123,15 @@ final class DatabaseManager {
 
         var results: [SessionEntry] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
-            guard let modePtr = sqlite3_column_text(stmt, 1),
+            guard let idPtr = sqlite3_column_text(stmt, 0),
+                  let modePtr = sqlite3_column_text(stmt, 1),
                   let reasonPtr = sqlite3_column_text(stmt, 4) else {
                 continue
             }
+            let uuid = UUID(uuidString: String(cString: idPtr)) ?? UUID()
             let mode = String(cString: modePtr)
             let focusSeconds = Int(sqlite3_column_int(stmt, 2))
+            let focusMinutes = Int(sqlite3_column_int(stmt, 3))
             let stopReason = String(cString: reasonPtr)
 
             var signals: [String]?
@@ -139,11 +142,33 @@ final class DatabaseManager {
                 }
             }
 
+            let timestampStr: String
+            if let tsPtr = sqlite3_column_text(stmt, 6) {
+                timestampStr = String(cString: tsPtr)
+            } else {
+                timestampStr = ""
+            }
+
+            let dateStr: String
+            if let datePtr = sqlite3_column_text(stmt, 7) {
+                dateStr = String(cString: datePtr)
+            } else {
+                dateStr = ""
+            }
+
+            let createdAtInterval = sqlite3_column_double(stmt, 8)
+            let createdAt = Date(timeIntervalSince1970: createdAtInterval)
+
             let entry = SessionEntry(
+                id: uuid,
                 mode: mode,
                 focusSeconds: focusSeconds,
+                focusMinutes: focusMinutes,
                 stopReason: stopReason,
-                signals: signals
+                signals: signals,
+                timestamp: timestampStr,
+                date: dateStr,
+                createdAt: createdAt
             )
             results.append(entry)
         }
